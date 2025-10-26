@@ -1,6 +1,5 @@
 // LoopFollow
 // MissedReadingCondition.swift
-// Created by Jonas Björkert.
 
 import Foundation
 
@@ -9,7 +8,7 @@ struct MissedReadingCondition: AlarmCondition {
     static let type: AlarmType = .missedReading
     init() {}
 
-    func evaluate(alarm: Alarm, data: AlarmData, now _: Date) -> Bool {
+    func evaluate(alarm: Alarm, data: AlarmData, now: Date) -> Bool {
         // ────────────────────────────────
         // 0. sanity checks
         // ────────────────────────────────
@@ -18,7 +17,18 @@ struct MissedReadingCondition: AlarmCondition {
         // Skip if we have *no* readings
         guard let last = data.bgReadings.last else { return false }
 
-        let secondsSinceLast = Date().timeIntervalSince(last.date)
+        guard let lastChecked = Storage.shared.lastBGChecked.value else {
+            // Never checked, so don't alarm.
+            return false
+        }
+
+        let checkedAgeSeconds = now.timeIntervalSince(lastChecked)
+        if checkedAgeSeconds > 360 { // 6 minutes
+            // The check itself is stale, so the data is unreliable. Don't alarm.
+            return false
+        }
+
+        let secondsSinceLast = now.timeIntervalSince(last.date)
         return secondsSinceLast >= thresholdMinutes * 60
     }
 }

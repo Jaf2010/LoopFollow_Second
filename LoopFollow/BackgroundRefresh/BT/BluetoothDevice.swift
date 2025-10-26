@@ -1,6 +1,5 @@
 // LoopFollow
 // BluetoothDevice.swift
-// Created by Jonas Björkert.
 
 import CoreBluetooth
 import Foundation
@@ -8,7 +7,7 @@ import os
 import UIKit
 
 class BluetoothDevice: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
-    public weak var bluetoothDeviceDelegate: BluetoothDeviceDelegate?
+    weak var bluetoothDeviceDelegate: BluetoothDeviceDelegate?
     private(set) var deviceAddress: String
     private(set) var deviceName: String?
     private let CBUUID_Advertisement: String?
@@ -158,7 +157,7 @@ class BluetoothDevice: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         _ = startScanning()
     }
 
-    public func cancelConnectionTimer() {
+    func cancelConnectionTimer() {
         if let connectTimeOutTimer = connectTimeOutTimer {
             connectTimeOutTimer.invalidate()
             self.connectTimeOutTimer = nil
@@ -224,11 +223,23 @@ class BluetoothDevice: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
 
     func centralManager(_: CBCentralManager, didDisconnectPeripheral _: CBPeripheral, error _: Error?) {
         timeStampLastStatusUpdate = Date()
-
         bluetoothDeviceDelegate?.didDisconnectFrom(bluetoothDevice: self)
+        cancelConnectionTimer()
 
-        if let ownPeripheral = peripheral {
-            centralManager?.connect(ownPeripheral, options: nil)
+        guard let ownPeripheral = peripheral else { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            guard let self = self,
+                  let manager = self.centralManager,
+                  manager.state == .poweredOn else { return }
+
+            switch ownPeripheral.state {
+            case .connected, .connecting:
+                // Already (re)connecting; do nothing
+                break
+            default:
+                manager.connect(ownPeripheral, options: nil)
+            }
         }
     }
 
